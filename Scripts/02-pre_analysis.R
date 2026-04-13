@@ -68,6 +68,7 @@ ggplot(ultra[sample(.N,50000)], aes(x = age, y = pace.min.per.km)) +
 # Violin plot gender vs. pace per km
 ultra2 <- ultra[athlete.gender %in% c("F","M")]
 ggplot(ultra2, aes(x = athlete.gender, y = pace.min.per.km)) +
+  coord_cartesian(ylim = c(0,20)) +
   geom_violin(fill="skyblue") +
   geom_boxplot(width=.1)
 
