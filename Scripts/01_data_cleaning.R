@@ -1,14 +1,18 @@
 # LOAD LIBRARIES
 # install.packages("data.table")
 library(data.table)
+library(data.table)
 
+df <- fread("C:/Users/Cailey/OneDrive - University of South Florida/USF/Spring 26/Stats 2/Project/Ultra_Marathon_Stats_Project/Data/TWO_CENTURIES_OF_UM_RACES_full.csv")
 # Load data
-df <- fread("Data/ultra_rankings_raw.csv", check.names = TRUE)
-
+# Standardize column names (lowercase + replace spaces and slashes with dots)
+names(df) <- tolower(names(df))
+names(df) <- gsub(" ", ".", names(df))
+names(df) <- gsub("/", ".", names(df))
+names(df)
 # see the columns and the first few rows
 head(df)
-
-# check for independence
+names(df)
 
 # this counts how many races each unique athlete ID participated in
 id_counts <- table(df$Athlete.ID)
@@ -24,7 +28,7 @@ sort(id_counts, decreasing = TRUE) |> head(10)
 # DISTANCES
 
 #check what values exists
-unique(df$Event.distance.length)
+unique(df$event.distance.length)
 
 # make a copy so you do not overwrite your original working df
 df_clean <- copy(df)
@@ -67,7 +71,7 @@ df_clean[, event_hours := fifelse(event_unit == "h", event_value, NA_real_)]
 #sanity checking
 names(df_clean)
 df_clean[1:15, .(
-  Event.distance.length,
+  event.distance.length,
   event_value,
   event_unit,
   stages,
@@ -77,26 +81,26 @@ df_clean[1:15, .(
 )]
 # more checking
 df_clean[event_unit == "mi",
-         .(Event.distance.length, event_value, distance_km)][1:10]
+         .(event.distance.length, event_value, distance_km)][1:10]
 # making sure the race categories look reasonable
 table(df_clean$race_category)
 # There are 18,840 rows where the distance format doesn't match the expected patterns
-unique(df_clean[race_category == "other", Event.distance.length])[1:30]
+unique(df_clean[race_category == "other", event.distance.length])[1:30]
 # fixing capitalization differences
-df_clean[, Event.distance.length :=
-           gsub("Km", "km", Event.distance.length)]
+df_clean[, event.distance.length :=
+           gsub("Km", "km", event.distance.length)]
 
-df_clean[, Event.distance.length :=
-           gsub("k$", "km", Event.distance.length)]
+df_clean[, event.distance.length :=
+           gsub("k$", "km", event.distance.length)]
 # fixing mile spellings
-df_clean[, Event.distance.length :=
-           gsub("mile", "mi", Event.distance.length)]
+df_clean[, event.distance.length :=
+           gsub("mile", "mi", event.distance.length)]
 # convert day races to hours
-df_clean[grepl("d$", Event.distance.length),
-         Event.distance.length :=
-           paste0(as.numeric(sub("d", "", Event.distance.length)) * 24, "h")]
+df_clean[grepl("d$", event.distance.length),
+         event.distance.length :=
+           paste0(as.numeric(sub("d", "", event.distance.length)) * 24, "h")]
 # remove obvious junk
-df_clean <- df_clean[Event.distance.length != "None"]
+df_clean <- df_clean[event.distance.length != "None"]
 # repeat the parsing section
 table(df_clean$race_category)
 # there are still 17,787 "other" categories. Let's just analyze fixed-distance races.
@@ -106,94 +110,141 @@ table(df_analysis$race_category)
 # CLEANING ATHLETE PERFORMANCE
 
 # Looking at unique formats
-unique(df_analysis$Athlete.performance)[1:50]
+unique(df_analysis$athlete.performance)[1:50]
 
 # check if km still appears in performance when filtering to only fixed distance races
-df_analysis[grepl("km", Athlete.performance), unique(Athlete.performance)][1:20]
+df_analysis[grepl("km", athlete.performance), unique(athlete.performance)][1:20]
+
 # how many missing performance times?
-sum(is.na(df_analysis$Athlete.performance))
-# Counting other unusual formats
-df_analysis[!grepl("^[0-9]{1,2}:[0-9]{2}:[0-9]{2}", Athlete.performance),
-            .N]
-# Seeing what the unusual formats are
+sum(is.na(df_analysis$athlete.performance))
+
+# remove trailing " h" and create cleaned version
+df_analysis[, perf.clean := sub(" h$", "", athlete.performance)]
+
+# detect rows that include days, like "2d 15:05:00"
+df_analysis[, has.days := !is.na(perf.clean) & grepl("d", perf.clean)]
+
+# count unusual formats
+df_analysis[
+  !is.na(perf.clean) &
+    !grepl("^[0-9]{1,2}:[0-9]{2}:[0-9]{2}$", perf.clean) &
+    !grepl("^[0-9]+d [0-9]{1,2}:[0-9]{2}:[0-9]{2}$", perf.clean),
+  .N
+]
+
+# inspect unusual formats
 unique(
   df_analysis[
-    !grepl("^[0-9]{1,2}:[0-9]{2}:[0-9]{2}", Athlete.performance),
-    Athlete.performance
+    !is.na(perf.clean) &
+      !grepl("^[0-9]{1,2}:[0-9]{2}:[0-9]{2}$", perf.clean) &
+      !grepl("^[0-9]+d [0-9]{1,2}:[0-9]{2}:[0-9]{2}$", perf.clean),
+    perf.clean
   ]
 )[1:50]
-# converting all performance times to similar format
 
-# removing trailing "h"
-df_analysis[, perf_clean := sub(" h$", "", Athlete.performance)]
-# detect rows with days
-df_analysis[, has_days := grepl("d", perf_clean)]
-# convert rows without days
-time_parts <- tstrsplit(df_analysis[has_days == FALSE]$perf_clean, ":")
+# initialize output column
+df_analysis[, performance.seconds := NA_real_]
 
-df_analysis[has_days == FALSE,
-            performance_seconds :=
-              as.numeric(time_parts[[1]])*3600 +
-              as.numeric(time_parts[[2]])*60 +
-              as.numeric(time_parts[[3]])]
-# convert rows with days
-#extract the number of days
-df_analysis[has_days == TRUE,
-            days := as.numeric(sub("d.*", "", perf_clean))]
-# remove the day portion
-df_analysis[has_days == TRUE,
-            time_only := sub(".*d ", "", perf_clean)]
-# split the remaining time
-day_time <- tstrsplit(df_analysis[has_days == TRUE]$time_only, ":")
-# convert to seconds
-df_analysis[has_days == TRUE,
-            performance_seconds :=
-              days*86400 +
-              as.numeric(day_time[[1]])*3600 +
-              as.numeric(day_time[[2]])*60 +
-              as.numeric(day_time[[3]])]
-# now everything is converted into seconds
+# -----------------------------
+# rows WITHOUT days: hh:mm:ss
+# -----------------------------
+valid.no.days <- df_analysis[
+  !is.na(perf.clean) &
+    has.days == FALSE &
+    grepl("^[0-9]{1,2}:[0-9]{2}:[0-9]{2}$", perf.clean)
+]
+
+time.parts <- tstrsplit(valid.no.days$perf.clean, ":")
+
+df_analysis[
+  !is.na(perf.clean) &
+    has.days == FALSE &
+    grepl("^[0-9]{1,2}:[0-9]{2}:[0-9]{2}$", perf.clean),
+  performance.seconds :=
+    as.numeric(time.parts[[1]]) * 3600 +
+    as.numeric(time.parts[[2]]) * 60 +
+    as.numeric(time.parts[[3]])
+]
+
+# -----------------------------
+# rows WITH days: Xd hh:mm:ss
+# -----------------------------
+df_analysis[
+  !is.na(perf.clean) & has.days == TRUE,
+  days := as.numeric(sub("d.*", "", perf.clean))
+]
+
+df_analysis[
+  !is.na(perf.clean) & has.days == TRUE,
+  time.only := sub(".*d ", "", perf.clean)
+]
+
+valid.days <- df_analysis[
+  !is.na(time.only) &
+    grepl("^[0-9]{1,2}:[0-9]{2}:[0-9]{2}$", time.only)
+]
+
+day.time <- tstrsplit(valid.days$time.only, ":")
+
+df_analysis[
+  !is.na(time.only) &
+    grepl("^[0-9]{1,2}:[0-9]{2}:[0-9]{2}$", time.only),
+  performance.seconds :=
+    days * 86400 +
+    as.numeric(day.time[[1]]) * 3600 +
+    as.numeric(day.time[[2]]) * 60 +
+    as.numeric(day.time[[3]])
+]
+
+# quick check
+summary(df_analysis$performance.seconds)
+
+# inspect rows still not converted
+df_analysis[
+  is.na(performance.seconds) & !is.na(athlete.performance),
+  .(athlete.performance, perf.clean)
+][1:50]
 
 # sanity check for performance
 #checking column type
-str(df_analysis$performance_seconds)
+str(df_analysis$performance.seconds)
 # checking for missing values
-sum(is.na(df_analysis$performance_seconds))
+sum(is.na(df_analysis$performance.seconds))
 # checking summary statistics
-summary(df_analysis$performance_seconds)
+summary(df_analysis$performance.seconds)
 # checking largest times (for multi day races)
-df_analysis[order(-performance_seconds)][1:10,
-                                         .(Athlete.performance, performance_seconds)]
+df_analysis[order(-performance.seconds)][1:10,
+                                         .(athlete.performance, performance.seconds)]
 # checking smallest times
-df_analysis[order(performance_seconds)][1:10,
-                                        .(Athlete.performance, performance_seconds, distance_km)]
+df_analysis[order(performance.seconds)][1:10,
+                                        .(athlete.performance, performance.seconds, distance_km)]
 # inspecting 2 missing values
-df_analysis[is.na(performance_seconds)]
+df_analysis[is.na(performance.seconds)]
 # removing the missing values
-df_analysis <- df_analysis[!is.na(performance_seconds)]
+df_analysis <- df_analysis[!is.na(performance.seconds)]
 # confirming that missing values are gone
-sum(is.na(df_analysis$performance_seconds))
+sum(is.na(df_analysis$performance.seconds))
 
 #removing "0" times
-df_analysis <- df_analysis[performance_seconds > 0]
+df_analysis <- df_analysis[performance.seconds > 0]
 
 # checking races are over 500km(extremely long)
 df_analysis[distance_km > 500, .N]
 df_analysis[distance_km > 500,
-            .(Event.name, Event.distance.length, distance_km)][1:20]
+            .(event.name, event.distance.length, distance_km)][1:20]
 # Since only 0.045% of the data set has distances larger than 500km, we will remove them
 df_analysis <- df_analysis[distance_km <= 500]
 # confirming data summary
 summary(df_analysis$distance_km)
 
 # checking for impossible paces, now that time and distance are both cleaned
-df_analysis[, pace_min_per_km := (performance_seconds / 60) / distance_km]
+df_analysis[, pace_min_per_km := (performance.seconds / 60) / distance_km]
 summary(df_analysis$pace_min_per_km)
 
 # dealing with very fast paces
 df_analysis[pace_min_per_km < 2,
-            .(Event.name, distance_km, Athlete.performance,
-              performance_seconds, pace_min_per_km)][1:20]
+            .(event.name, distance_km, athlete.performance,
+              performance.seconds, pace_min_per_km)][1:20]
 # revealing only rows with impossible paces
 df_analysis[!is.na(pace_min_per_km) & pace_min_per_km < 2]
 df_analysis[pace_min_per_km < 2, .N]
@@ -202,8 +253,8 @@ df_analysis <- df_analysis[pace_min_per_km >= 2]
 
 # dealing with very slow paces
 df_analysis[pace_min_per_km > 60,
-            .(Event.name, distance_km, Athlete.performance,
-              performance_seconds, pace_min_per_km)][1:20]
+            .(event.name, distance_km, athlete.performance,
+              performance.seconds, pace_min_per_km)][1:20]
 df_analysis[pace_min_per_km > 60, .N]
 # removing them. there are only 21 rows like this
 df_analysis <- df_analysis[
@@ -220,20 +271,20 @@ df_analysis[, c("perf_clean","has_days","days","time_only",
                 "distance_main","event_value","event_unit") := NULL]
 # CLEANING EVENT DATES
 names(df_analysis)
-df_analysis[sample(.N, 50), Event.dates]
+df_analysis[sample(.N, 50), event.dates]
 
 # If the date entry contains a range, we will choose the starting date
-df_analysis[, Event.dates := gsub("^([0-9]{2})\\.-[0-9]{2}\\.", "\\1.", Event.dates)]
+df_analysis[, event.dates := gsub("^([0-9]{2})\\.-[0-9]{2}\\.", "\\1.", event.dates)]
 # Fixing the formatting
-df_analysis[, Event.dates := as.Date(Event.dates, format = "%d.%m.%Y")]
+df_analysis[, event.dates := as.Date(event.dates, format = "%d.%m.%Y")]
 
 # checking the results
-class(df_analysis$Event.dates)
-sum(is.na(df_analysis$Event.dates))
-df_analysis[sample(.N, 20), Event.dates]
+class(df_analysis$event.dates)
+sum(is.na(df_analysis$event.dates))
+df_analysis[sample(.N, 20), event.dates]
 #checking how many are NA
-sum(is.na(df_analysis$Event.dates))
-df_analysis[is.na(Event.dates), .(Event.dates, Event.name)][1:20]
+sum(is.na(df_analysis$event.dates))
+df_analysis[is.na(event.dates), .(event.dates, event.name)][1:20]
 # there are 47230 NA dates
 
 # AGE VARIABLE
@@ -247,11 +298,11 @@ df_analysis[,Age := Year.of.event - Athlete.year.of.birth]
 summary(df_analysis$Age)
 # inspecting super young athletes
 df_analysis[Age < 15,
-            .(Year.of.event, Event.dates, Event.name, Athlete.year.of.birth, Athlete.gender, Age)][1:30]
+            .(Year.of.event, event.dates, event.name, Athlete.year.of.birth, Athlete.gender, Age)][1:30]
 
 # inspecting super old athletes
 df_analysis[Age > 100,
-            .(Year.of.event, Event.dates, Event.name, Athlete.year.of.birth, Athlete.gender, Age)][1:30]
+            .(Year.of.event, event.dates, event.name, Athlete.year.of.birth, Athlete.gender, Age)][1:30]
 # seems to be a pattern of using birth year 1900/1901 when birth year is unknown
 # filtering extreme ages due to data errors
 df_analysis <- df_analysis[Age >= 10 & Age <= 105]
@@ -262,7 +313,7 @@ class(df_analysis$pace_min_per_km)
 summary(df_analysis$pace_min_per_km)
 
 # checking how pace changes with distance
-df_analysis[, .N, by = Event.distance.length]
+df_analysis[, .N, by = event.distance.length]
 
 # compute average pace by distance
 distance_pace <- df_analysis[
@@ -270,7 +321,7 @@ distance_pace <- df_analysis[
   .(mean_pace = mean(pace_min_per_km),
     median_pace = median(pace_min_per_km),
     n = .N),
-  by = Event.distance.length
+  by = event.distance.length
 ]
 
 distance_pace
@@ -319,15 +370,15 @@ country_counts <- df_analysis[, .N, by = Athlete.country][order(Athlete.country)
 country_counts
 
 #checking performance times
-summary(df_analysis$performance_seconds)
+summary(df_analysis$performance.seconds)
 
 #checking duplicate race entries
 sum(duplicated(df_analysis))
-df_analysis[, .N, by = .(Athlete.ID, Event.name, Event.dates)][N > 1]
+df_analysis[, .N, by = .(Athlete.ID, event.name, event.dates)][N > 1]
 # duplicates exist. Let's inspect one of them
 df_analysis[
   Athlete.ID == 1652 &
-    Event.name == "Balaton Szupermaraton Stage 2 Fonyód - Szigllget (HUN)"
+    event.name == "Balaton Szupermaraton Stage 2 Fonyód - Szigllget (HUN)"
 ]
 
 # Looks like we have identical athlete ID's matching to different people. Let's inspect
@@ -364,10 +415,10 @@ df_analysis[Athlete.ID == 236, unique(Athlete.year.of.birth)]
 df_analysis[Athlete.year.of.birth == 1967, .N]
 # taking a further look at ID 236
 df_analysis[Athlete.ID == 236,
-            .(Year.of.event, Event.name, Athlete.year.of.birth)][1:30]
+            .(Year.of.event, event.name, Athlete.year.of.birth)][1:30]
 
 # EXTRACT EVENT COUNTRY FROM EVENT NAME
-df_analysis[, Event.country := sub(".*\\(([^)]+)\\)$", "\\1", Event.name)]
+df_analysis[, Event.country := sub(".*\\(([^)]+)\\)$", "\\1", event.name)]
 
 # check results
 unique(df_analysis$Event.country)[1:20]
@@ -422,7 +473,7 @@ df_analysis[
 
 # EVENT SEASON
 #extracting the month
-df_analysis[, event_month := as.integer(format(Event.dates, "%m"))]
+df_analysis[, event_month := as.integer(format(event.dates, "%m"))]
 # creating the season variables
 df_analysis[, event_season :=
               fifelse(event_month %in% c(12,1,2), "Winter",
@@ -433,14 +484,14 @@ df_analysis[, event_season :=
 df_analysis[, .N, by = event_season]
 # there are <NA> event seasons. Investigating
 sum(is.na(df_analysis$event_season))
-sum(is.na(df_analysis$Event.dates))
+sum(is.na(df_analysis$event.dates))
 # exactly 43377 <NA>s for both categories
 
 # last sanity check
 # creating a numeric dataset
 numeric_vars <- df_analysis[, .(
   distance_km,
-  performance_seconds,
+  performance.seconds,
   pace_min_per_km,
   Age,
   Event.number.of.finishers
