@@ -114,3 +114,5 @@ ggplot(country_stats[order(mean_pace)][1:20],
     x = "Country",
     y = "Mean Pace (min/km)"
   )
+
+

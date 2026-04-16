@@ -31,6 +31,8 @@ skim(ultra)
 # number of rows
 nrow(ultra)
 
+
+
 range(ultra$year.of.event)       # should show 1798 to 2022
 
 table(ultra$race.category)
@@ -194,6 +196,14 @@ ggplot(year_summary[year.of.event >= 1950 & year.of.event <= 2022, ],
   labs(title = "Median Pace by Year (1950–2022)",
        x = "Year of Event",
        y = "Median Minutes per km")
+
+nrow(ultra[distance.km > 150])
+# histogram for distances
+ggplot(ultra, aes(x = distance.km)) +
+  geom_histogram(binwidth = 10, fill = "steelblue", color = "white") +
+  coord_cartesian(xlim = c(39, 250)) +
+  labs(title = "Distribution of Race Distances (≤250km)",
+       x = "Distance (km)", y = "Count")
 
 # bar chart for event season (remove NA values)
 

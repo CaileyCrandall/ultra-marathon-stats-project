@@ -6,6 +6,21 @@ set.seed(123)
 
 
 ultra <- fread("Data/ultra_rankings_clean.csv")
+## CLAUDE
+# ── Country frequency filter (must come before sampling) ──
+country_counts <- ultra[, .N, by = event.country]
+common_countries <- country_counts[N >= 500, event.country]
+ultra <- ultra[event.country %in% common_countries]
+
+# ── Filter to M/F and clean age before sampling ──
+ultra <- ultra[
+  athlete.gender %in% c("F", "M") &
+    !is.na(pace.min.per.km) &
+    !is.na(age) &
+    !is.na(event.season) &
+    !is.na(distance.km)
+]
+## CLAUDE
 
 df <- ultra[sample(.N, 100000)]
 
@@ -27,6 +42,8 @@ table(test_data$athlete.gender, useNA = "ifany")
 levels(train_data$athlete.gender)
 levels(test_data$athlete.gender)
 
+
+
 #FIXING GENDER
 train_data <- train_data[athlete.gender %in% c("F","M")]
 test_data  <- test_data[athlete.gender %in% c("F","M")]
@@ -41,12 +58,49 @@ test_data$athlete.gender  <- factor(test_data$athlete.gender,
 
 
 
+#FIXING COUNTRIES
 
+#Significance of countries
+#how is country?
+
+# Fit model with just event.country as a main effect (no interactions)
+model_country <- lm(pace.min.per.km ~ event.country, data = train_data)
+summary(model_country)
+
+# Compare R² with and without
+model_no_country <- lm(pace.min.per.km ~ distance.km + I(distance.km^2) + 
+                         athlete.gender + age + event.season, 
+                       data = train_data)
+
+model_with_country <- lm(pace.min.per.km ~ distance.km + I(distance.km^2) + 
+                           athlete.gender + age + event.season + event.country, 
+                         data = train_data)
+
+cat("R² without country:", summary(model_no_country)$r.squared, "\n")
+cat("R² with country:", summary(model_with_country)$r.squared, "\n")
+
+# ANOVA test — does adding country significantly improve the model?
+anova(model_no_country, model_with_country)
+
+# Find countries common to both train and test
+common_countries <- intersect(
+  unique(train_data$event.country),
+  unique(test_data$event.country)
+)
+
+# Filter both to only common countries
+train_data <- train_data[event.country %in% common_countries]
+test_data  <- test_data[event.country %in% common_countries]
+
+# Align factor levels
+train_data$event.country <- factor(train_data$event.country)
+test_data$event.country  <- factor(test_data$event.country,
+                                   levels = levels(train_data$event.country))
 
 
 
 # BUILDING THE MODEL
-train_model <- lm(pace.min.per.km ~ (year.of.event + event.number.of.finishers + age + event.season + athlete.gender + distance.km + event.country )^2, data = df)
+train_model <- lm(pace.min.per.km ~ (year.of.event + event.number.of.finishers + age + event.season + athlete.gender + distance.km + event.country )^2, data = train_data)
 
 
 
@@ -119,3 +173,4 @@ abline(h=0, col="red")
 
 # ANOVA 
 anova(train_model)
+
