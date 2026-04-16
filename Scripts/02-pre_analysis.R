@@ -96,15 +96,22 @@ names(ultra)
 
 
 # Boxplot of pace by gender within distance group
-ggplot(ultra[athlete.gender %in% c("F","M")],
-       aes(x = distance.group,
-           y = pace.min.per.km,
-           fill = athlete.gender)) +
+# Boxplot of pace by gender within distance group
+ggplot(
+  ultra[athlete.gender %in% c("F","M")],
+  aes(
+    x = factor(distance.group,
+               levels = c("~50km", "~100km", "~100mi", "~200km", "200km+")),
+    y = pace.min.per.km,
+    fill = athlete.gender
+  )
+) +
   geom_boxplot(outlier.alpha = 0.05) +
   coord_cartesian(ylim = c(3,20)) +
   labs(title = "Pace by Gender Across Distance Groups",
        x = "Distance Group",
-       y = "Minutes per km")
+       y = "Minutes per km",
+       fill = "Gender")
 
 # Mean/Median pace line plot by distance
 summary_df <- ultra[
@@ -114,13 +121,17 @@ summary_df <- ultra[
 ]
 
 ggplot(summary_df,
-       aes(x = distance.group,
+       aes(x = factor(distance.group,
+                      levels = c("~50km", "~100km", "~100mi", "~200km", "200km+")),
            y = median_pace,
            color = athlete.gender,
            group = athlete.gender)) +
-  geom_line(size = 1.2) +
+  geom_line(linewidth = 1.2) +
   geom_point(size = 3) +
-  labs(title = "Median Pace by Gender and Distance")
+  labs(title = "Median Pace by Gender and Distance",
+       x = "Distance Group",
+       y = "Median Minutes per km",
+       color = "Gender")
 
 #Density plot for the 100mi, pace vs gender
 ggplot(
@@ -175,8 +186,18 @@ ggplot(year_summary,
        x = "Year of Event",
        y = "Median Minutes per km")
 
-# bar chart for event season
-ggplot(ultra, aes(x = event.season)) +
+#filtered version of above plot
+ggplot(year_summary[year.of.event >= 1950 & year.of.event <= 2022, ],
+       aes(x = year.of.event, y = median_pace)) +
+  geom_line(color = "steelblue", linewidth = 1) +
+  geom_smooth(method = "loess", color = "red", se = FALSE) +
+  labs(title = "Median Pace by Year (1950–2022)",
+       x = "Year of Event",
+       y = "Median Minutes per km")
+
+# bar chart for event season (remove NA values)
+
+ggplot(ultra[!is.na(event.season), ], aes(x = event.season)) +
   geom_bar(fill = "steelblue") +
   labs(title = "Distribution of Events by Season",
        x = "Season",
@@ -222,3 +243,11 @@ ggplot(country_summary,
                    xend = event.country,
                    y = 0,
                    yend = median_pace))
+
+#correlation matrix for numeric variables
+num_vars <- ultra[, .(pace.min.per.km, age, distance.km,
+                      event.number.of.finishers, year.of.event,
+                      performance.seconds)]
+cor_matrix <- cor(num_vars, use = "complete.obs")
+corrplot(cor_matrix, method = "color", type = "upper")
+
