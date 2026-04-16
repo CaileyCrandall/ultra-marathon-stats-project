@@ -219,7 +219,7 @@ df_analysis[, age := year.of.event - athlete.year.of.birth]
 summary(df_analysis$age)
 
 # remove implausible ages
-df_analysis <- df_analysis[is.na(age) | (age >= 10 & age <= 105)]
+df_analysis <- df_analysis[is.na(age) | (age >= 18 & age <= 75)]
 
 # =========================================
 # DISTANCE GROUPS
