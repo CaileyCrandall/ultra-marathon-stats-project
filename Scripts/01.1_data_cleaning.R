@@ -16,6 +16,7 @@ names(df) <- gsub(" ", ".", names(df))
 names(df) <- gsub("/", ".", names(df))
 names(df) <- gsub("\\.+", ".", names(df))
 
+
 # Quick check
 names(df)
 head(df)
@@ -88,6 +89,8 @@ head(unique(df_clean[race.category == "other", event.distance.length]), 30)
 
 # keep only fixed-distance races for analysis
 df_analysis <- copy(df_clean[race.category == "fixed_distance"])
+
+
 
 # =========================================
 # ATHLETE PERFORMANCE CLEANING
@@ -163,9 +166,25 @@ df_analysis <- df_analysis[distance.km <= 500]
 # compute pace
 df_analysis[, pace.min.per.km := (performance.seconds / 60) / distance.km]
 
-# remove impossible or extreme pace outliers
-df_analysis <- df_analysis[pace.min.per.km >= 2 & pace.min.per.km <= 60]
+summary(df_analysis)
+# =========================================
+# RAW DATA BOXPLOT BEFORE FILTERING
+# =========================================
 
+boxplot(df_analysis$pace.min.per.km,
+        data=df_analysis,
+        main = "Pace Before Filtering",
+        ylab = "Minutes per km")
+        
+
+
+# remove impossible or extreme pace outliers
+df_analysis <- df_analysis[pace.min.per.km >= 2 & pace.min.per.km <= 15]
+
+#box plot after filtering
+boxplot(df_analysis$pace.min.per.km,
+        main = "Cleaned Pace After Filtering",
+        ylab = "Minutes per km")
 # checks
 summary(df_analysis$distance.km)
 summary(df_analysis$pace.min.per.km)

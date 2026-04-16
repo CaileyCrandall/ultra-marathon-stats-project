@@ -4,11 +4,11 @@ library(skimr)
 library(corrplot)
 set.seed(123)
 
-install.packages("mctest")
 
 ultra <- fread("Data/ultra_rankings_clean.csv")
 
 df <- ultra[sample(.N, 100000)]
+
 
 train_index <- sample(1:nrow(df), size = 0.8 * nrow(df))
 
@@ -41,13 +41,12 @@ test_data$athlete.gender  <- factor(test_data$athlete.gender,
 
 
 
-unique(train_data[sample(.N, 50000), athlete.gender])
+
 
 
 
 # BUILDING THE MODEL
-train_model <- lm(pace.min.per.km ~ (athlete.gender + distance.km + event.season + age + event.number.of.finishers + year.of.event)^2,
-                  data = train_data)
+train_model <- lm(pace.min.per.km ~ (year.of.event + event.number.of.finishers + age + event.season + athlete.gender + distance.km + event.country )^2, data = df)
 
 
 
@@ -90,6 +89,7 @@ sse <- sum((eval$actual - eval$predicted)^2)
 r2_test <- 1 - sse/sst
 
 
+
 rmse
 mae
 r2_test
@@ -116,3 +116,6 @@ summary(test_data$distance.km)
 #Residual Plot
 plot(eval$predicted, eval$actual - eval$predicted)
 abline(h=0, col="red")
+
+# ANOVA 
+anova(train_model)
