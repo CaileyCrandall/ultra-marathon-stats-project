@@ -25,6 +25,12 @@ ultra <- fread("Data/ultra_rankings_clean.csv")
 
 # ── 2. Filter and clean ──────────────────────────────────────
 
+ultra <- ultra[sample(.N, 100000)]
+
+# Keep only frequent countries (avoids unseen level errors in prediction)
+country_counts  <- ultra[, .N, by = event.country]
+common_countries <- country_counts[N >= 500, event.country]
+ultra <- ultra[event.country %in% common_countries]
 # Keep only frequent countries (avoids unseen level errors in prediction)
 country_counts  <- ultra[, .N, by = event.country]
 common_countries <- country_counts[N >= 500, event.country]
@@ -40,7 +46,7 @@ ultra <- ultra[
     !is.na(event.country)
   ]
 
-ultra <- ultra[sample(.N, 100000)]
+
 # Factor levels
 ultra[, athlete.gender := relevel(factor(athlete.gender), ref = "F")]
 ultra[, event.season   := factor(event.season,
@@ -53,7 +59,7 @@ ultra[, distance2 := distance.km^2]
 cat("Rows after cleaning:", nrow(ultra), "\n")
 
 # ── 3. Train / Test Split ────────────────────────────────────
-df          <- ultra[sample(.N, 100000)]
+df          <- ultra
 train_index <- sample(1:nrow(df), size = 0.8 * nrow(df))
 train_data  <- df[train_index, ]
 test_data   <- df[-train_index, ]
@@ -68,6 +74,24 @@ test_data[, event.country  := factor(event.country,
 
 cat("Train rows:", nrow(train_data), "\n")
 cat("Test rows: ", nrow(test_data),  "\n")
+
+table(train_data$event.season)
+aggregate(pace.min.per.km ~ event.season, data=train_data, mean)
+
+levels(train_data$event.country)[1]
+# country and season distribution
+prop.table(table(ultra$event.country, ultra$event.season), margin = 1)
+
+# Basic summary of Andorra's paces
+summary(ultra[event.country == "AND"]$pace.min.per.km)
+
+# Compare to overall dataset
+summary(ultra$pace.min.per.km)
+
+# Or a nice side by side mean comparison
+aggregate(pace.min.per.km ~ event.country == "AND", data = ultra, mean)
+
+
 
 # ── 4. Fit Final Model ───────────────────────────────────────
 # Every predictor is justified by prior statistical tests:
