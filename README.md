@@ -1,10 +1,11 @@
-# Ultra Marathon Running Analysis
+# Ultra Marathon Data Analysis
 
-> Exploring 224 years of endurance — performance, demographics, and race trends from 1798 to 2022.
+> What factors influence ultramarathon pacing?
+> Using 6.8 million race records from 1798–2022.
 
-Ultramarathons are any foot race exceeding the standard marathon distance of 42.195 km.
-They range from 50 km trail runs to multi-day fixed-time events (e.g., 24-hour or 6-day races),
-attracting athletes who push well beyond conventional limits of human endurance.
+Ultramarathons are foot races exceeding the standard marathon distance (42.195 km).
+This project investigates which factors — distance, gender, age, season, and location —
+predict athlete pace (min/km) using a large historical dataset spanning over 200 years.
 
 ---
 
@@ -12,76 +13,50 @@ attracting athletes who push well beyond conventional limits of human endurance.
 
 | Metric | Value |
 |---|---|
-| Total race records | 7,461,226 |
-| Unique athletes | 1,641,168 |
+| Raw records (before cleaning) | 6,837,563 |
 | Time span | 1798 – 2022 |
 
 ### Variables
 
-**Event information**
-- Year, date, and full event name
-- Race distance or type (distance-based vs. time-based)
-- Number of finishers per event
-
-**Athlete information**
-- Anonymized unique athlete ID (for longitudinal tracking)
-- Country of origin
-- Gender
-- Age at time of race
-- Club affiliation
-
-**Performance metrics**
-- Finish time
-- Average speed (km/h)
-
-> [!NOTE]
-> Athletes are identified using anonymized IDs to enable multi-race longitudinal analysis
-> while fully preserving privacy.
+| Category | Fields |
+|---|---|
+| Event | Year, date, distance, country, finishers |
+| Athlete | Gender, age |
+| Performance | Time, speed |
+| Derived | Pace (min/km), distance (km), seconds |
 
 ---
 
-## Objectives
+## Method
 
-This project addresses four core research questions:
+The analysis follows a five-stage pipeline:
 
-1. **Performance over time** — Have finish times and average speeds improved across decades?
-   Are elite and mid-pack athletes trending faster?
-
-2. **Gender and age comparisons** — How do performance profiles differ across genders and age groups?
-   At what age do athletes typically peak, and how does speed decline afterward?
-
-3. **Race type analysis** — Do distance-based and time-based events attract different athlete profiles?
-   How do completion rates and average speeds compare between formats?
-
-4. **Speed determinants** — Which factors — age, gender, race type, season, location, experience —
-   are the strongest predictors of average speed in a regression framework?
+**1. Data cleaning** → **2. EDA** → **3. Hypothesis testing** → **4. Two-Way ANOVA** → **5. Multiple linear regression + model evaluation**
 
 ---
 
-## Methods
+## Key highlights
 
-### 1. Data Cleaning & Preprocessing
-- Handling missing and malformed values across 7.4M records
-- Standardizing date formats and converting variable types
-- Identifying and resolving duplicates
-
-### 2. Feature Engineering
-- **Athlete age** at the time of each race
-- **Seasonality** (Q1–Q4) derived from event dates
-- **Location** extracted and categorized from event names
-
-### 3. Descriptive Statistics & Visualization
-- Distribution plots of speed and finish time by gender, age group, and race type
-- Trend lines showing performance changes across decades
-- Participation growth over time
-
-### 4. Inferential Statistics & Regression
-- Hypothesis testing to compare group performance (e.g., gender, age brackets)
-- Linear and/or multiple regression to quantify the effect of key variables on average speed
+- Pace mostly falls between 6–10 min/km; athletes are typically 35–45 years old
+- Most common distances are 50 km, 100 km, and 100 miles
+- Distance is the strongest predictor of pace — longer races produce slower times
+- Men average faster paces than women, though the gap narrows at longer distances
+- Country/location explains substantial variation in pace beyond individual athlete traits
+- Raw seasonal trends can be misleading without controlling for event location
 
 > [!NOTE]
-> Due to dataset size (~7.5M records), some analyses are performed on
-> representative subsets to ensure computational efficiency without sacrificing accuracy.
+> For full statistical results, model coefficients, and visualizations, see the
+> analysis scripts in the **Project Files** section below.
+
+---
+
+## Limitations
+
+**Unknown factors** — diet, race elevation, overall athlete fitness, and weather conditions are not captured in the dataset.
+
+**Observational data** — this is not experimental; causal claims cannot be made.
+
+**Large sample size** — with ~6.8 million records, even tiny effects become statistically significant and p-values alone should not be over-interpreted.
 
 ---
 
@@ -89,13 +64,10 @@ This project addresses four core research questions:
 
 | File | Description |
 |---|---|
-| `ultra_marathon_data_cleaning_log.xlsx` | Step-by-step documentation of all data cleaning decisions |
-| `Questions and Methods.xlsx` | Full list of research questions and planned statistical methods |
-
+| `01.1_data_cleaning.R` | Standardizes raw race data, handles missing values, filters outliers, and engineers derived variables |
+| `02-pre_analysis.R` | Exploratory data analysis — generates distribution plots for pace, age, distance, and season |
+| `03-ANOVA.R` | One-way and two-way ANOVA testing the effects of gender and distance group on pace |
+| `Final model.R` | Builds and evaluates a multiple linear regression model predicting athlete pace |
 ---
 
-## Acknowledgments
-
-Data sourced from publicly available ultra-marathon race records spanning 1798–2022.
-All athlete data has been fully anonymized. No personally identifiable information is
-included in any analysis or output.
+*Data sourced from publicly available ultra-marathon race records. All athlete data is anonymized.*
